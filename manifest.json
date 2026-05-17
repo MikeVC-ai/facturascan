@@ -1,0 +1,25 @@
+{
+  "name": "FacturaScan — Sabores que Deleitan",
+  "short_name": "FacturaScan",
+  "description": "Gestión de facturas de compras para declaración de renta",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0a0f",
+  "theme_color": "#0a0a0f",
+  "orientation": "portrait",
+  "lang": "es",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ],
+  "categories": ["business", "finance", "productivity"],
+  "shortcuts": [
+    {
+      "name": "Escanear Factura",
+      "short_name": "Escanear",
+      "description": "Fotografiar una nueva factura",
+      "url": "/?scan=1",
+      "icons": [{ "src": "icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}
