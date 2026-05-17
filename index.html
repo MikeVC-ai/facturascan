@@ -520,28 +520,23 @@ function handleGoogleLogin(response) {
 }
 
 function requestDriveAccess() {
-  showLoading('Autenticando con Google…', 'Solicitando permisos de Drive y Sheets');
-  const client = google.accounts.oauth2.initTokenClient({
-    client_id: GOOGLE_CLIENT_ID,
-    scope: GOOGLE_SCOPES,
-    callback: (tokenResponse) => {
-      hideLoading();
-      if (tokenResponse.error) {
-        showToast('❌ Error de autenticación: ' + tokenResponse.error, 'error');
-        return;
-      }
-      state.accessToken = tokenResponse.access_token;
-      // Guardar token en sesión (expira en 1h)
-      sessionStorage.setItem('fs_token', state.accessToken);
-      sessionStorage.setItem('fs_user', JSON.stringify({
-        email: state.userEmail,
-        name:  state.userName,
-        photo: state.userPhoto
-      }));
-      onLoginSuccess();
-    },
+  showLoading('Autenticando con Google…', 'Redirigiendo para autorizar Drive y Sheets');
+
+  // Usamos flujo de redirección en lugar de popup
+  // Funciona en todos los navegadores y móviles sin bloqueo
+  const params = new URLSearchParams({
+    client_id:     GOOGLE_CLIENT_ID,
+    redirect_uri:  window.location.origin + window.location.pathname,
+    response_type: 'token',
+    scope:         GOOGLE_SCOPES,
+    state:         btoa(JSON.stringify({
+      email: state.userEmail,
+      name:  state.userName,
+      photo: state.userPhoto
+    })),
+    prompt: 'consent'
   });
-  client.requestAccessToken();
+  window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params}`;
 }
 
 async function onLoginSuccess() {
@@ -579,8 +574,44 @@ function doLogout() {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// GOOGLE DRIVE — ESTRUCTURA DE CARPETAS Y SHEET MAESTRO
+// CAPTURA TOKEN DESPUÉS DE REDIRECCIÓN OAUTH
+// Google redirige de vuelta a la app con el token en el hash URL
+// ej: https://mikevc-ai.github.io/facturascan/#access_token=xxx
 // ═══════════════════════════════════════════════════════════════
+function captureTokenFromRedirect() {
+  const hash = window.location.hash.substring(1);
+  if (!hash) return false;
+  const params = new URLSearchParams(hash);
+  const token  = params.get('access_token');
+  const state_ = params.get('state');
+  if (!token) return false;
+
+  // Limpiar el hash de la URL (queda más limpio)
+  history.replaceState(null, '', window.location.pathname);
+
+  // Restaurar datos del usuario desde el state
+  try {
+    const userData = JSON.parse(atob(state_));
+    state.userEmail = userData.email;
+    state.userName  = userData.name;
+    state.userPhoto = userData.photo;
+  } catch(e) {
+    // Si falla el state, datos mínimos
+    state.userName = 'Usuario';
+  }
+
+  state.accessToken = token;
+  sessionStorage.setItem('fs_token', token);
+  sessionStorage.setItem('fs_user', JSON.stringify({
+    email: state.userEmail,
+    name:  state.userName,
+    photo: state.userPhoto
+  }));
+
+  return true;
+}
+
+
 async function driveRequest(url, options={}) {
   const resp = await fetch(url, {
     ...options,
@@ -1019,24 +1050,42 @@ function init(){
   document.getElementById('rtabYear').textContent=now.getFullYear();
   updateSeq(); updateProviderList();
 
-  // Restaurar sesión si existe token en sessionStorage
-  const savedToken=sessionStorage.getItem('fs_token');
-  const savedUser=sessionStorage.getItem('fs_user');
-  if(savedToken && savedUser){
-    const u=JSON.parse(savedUser);
-    state.accessToken=savedToken;
-    state.userEmail=u.email; state.userName=u.name; state.userPhoto=u.photo;
-    const avatarEl=document.getElementById('userAvatar');
-    if(u.photo) avatarEl.innerHTML=`<img src="${u.photo}" alt="">`;
-    else avatarEl.textContent=u.name.charAt(0).toUpperCase();
-    document.getElementById('userName').textContent=u.name.split(' ')[0];
-    document.getElementById('userPill').style.display='flex';
-    document.getElementById('bottomNav').style.display='flex';
-    state.loggedIn=true;
-    // Verificar estructura Drive en background
-    initDriveStructure().catch(()=>updateDriveStatus('err','Error al conectar Drive'));
-    goTo('home');
+  // CASO 1: Google acaba de redirigir con el token en el hash URL
+  if (captureTokenFromRedirect()) {
+    const avatarEl = document.getElementById('userAvatar');
+    if (state.userPhoto) avatarEl.innerHTML = `<img src="${state.userPhoto}" alt="">`;
+    else avatarEl.textContent = (state.userName||'U').charAt(0).toUpperCase();
+    document.getElementById('userName').textContent = (state.userName||'Usuario').split(' ')[0];
+    document.getElementById('userPill').style.display = 'flex';
+    document.getElementById('bottomNav').style.display = 'flex';
+    state.loggedIn = true;
+    showLoading('Conectando con Drive…', 'Verificando estructura de carpetas');
+    initDriveStructure()
+      .then(() => { hideLoading(); goTo('home'); showToast(`✅ Bienvenido, ${(state.userName||'').split(' ')[0]}`, 'success'); })
+      .catch(() => { hideLoading(); goTo('home'); showToast('⚠️ Error al conectar Drive', 'error'); });
+    return;
   }
+
+  // CASO 2: Sesión guardada en sessionStorage (token aún válido)
+  const savedToken = sessionStorage.getItem('fs_token');
+  const savedUser  = sessionStorage.getItem('fs_user');
+  if (savedToken && savedUser) {
+    const u = JSON.parse(savedUser);
+    state.accessToken = savedToken;
+    state.userEmail = u.email; state.userName = u.name; state.userPhoto = u.photo;
+    const avatarEl = document.getElementById('userAvatar');
+    if (u.photo) avatarEl.innerHTML = `<img src="${u.photo}" alt="">`;
+    else avatarEl.textContent = u.name.charAt(0).toUpperCase();
+    document.getElementById('userName').textContent = u.name.split(' ')[0];
+    document.getElementById('userPill').style.display = 'flex';
+    document.getElementById('bottomNav').style.display = 'flex';
+    state.loggedIn = true;
+    initDriveStructure().catch(() => updateDriveStatus('err', 'Error al conectar Drive'));
+    goTo('home');
+    return;
+  }
+
+  // CASO 3: Sin sesión — mostrar pantalla de login
 }
 init();
 </script>
