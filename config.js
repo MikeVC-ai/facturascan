@@ -30,7 +30,7 @@
 // Obtener en: aistudio.google.com/app/apikey
 // Con tu cuenta Google One Pro ya tienes acceso gratuito.
 // El free tier de Gemini 1.5 Flash: 1,500 requests/día — más que suficiente.
-const GEMINI_API_KEY = 'AIzaSyBtwSaJ513MKMKuhQGg9SnpcEwzM5Itxk0';
+const GEMINI_API_KEY = 'AIzaSyChfZcxyhM6hMXr4yH8m6DZa0rQ2pIWgFI';
 
 // ── GOOGLE OAUTH ──────────────────────────────────────────────
 const GOOGLE_CLIENT_ID = '954266432676-khr7b8u0p9sj3kjdvg1cb3aj3bg5mkia.apps.googleusercontent.com';
